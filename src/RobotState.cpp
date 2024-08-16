@@ -36,9 +36,9 @@ RobotState::RobotState(const Eigen::MatrixXd& X, const Eigen::VectorXd& Theta, c
     X_(X), Theta_(Theta), P_(P) {}
 // TODO: error checking to make sure dimensions are correct and supported
 
-const Eigen::MatrixXd RobotState::getX() const { return X_; }
-const Eigen::VectorXd RobotState::getTheta() const { return Theta_; }
-const Eigen::MatrixXd RobotState::getP() const { return P_; }
+const Eigen::MatrixXd RobotState::getX() const { return X_; } // state
+const Eigen::VectorXd RobotState::getTheta() const { return Theta_; } // IMU biases
+const Eigen::MatrixXd RobotState::getP() const { return P_; } // covariance
 const Eigen::Matrix3d RobotState::getRotation() const { return X_.block<3,3>(0,0); }
 const Eigen::Vector3d RobotState::getVelocity() const { return X_.block<3,1>(0,3); }
 const Eigen::Vector3d RobotState::getPosition() const { return X_.block<3,1>(0,4); }

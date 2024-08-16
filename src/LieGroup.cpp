@@ -45,10 +45,12 @@ Eigen::Matrix3d Gamma_SO3(const Eigen::Vector3d& w, int m) {
 
     // Closed form solution for the first 3 cases
     switch (m) {
-        case 0: // Exp map of SO(3)
+        case 0: // Exp map of SO(3) // Taylor expansion: Directly computes the rotation matrix for a given angular velocity vector.
             return I + (sin(theta)/theta)*A + ((1-cos(theta))/theta2)*A*A;
-        
-        case 1: // Left Jacobian of SO(3)
+
+        case 1: // Left Jacobian of SO(3) // Mapping small angular changes in the Lie algebra to changes in the Lie group
+                // This integral captures how the exponential map smoothly transitions from the identity to ew∧ as t goes from 0 to 1.
+                // exp(w^) = I + w^Jl(w)
             // eye(3) - A*(1/theta^2) * (R - eye(3) - A);
             // eye(3) + (1-cos(theta))/theta^2 * A + (theta-sin(theta))/theta^3 * A^2;
             return I + ((1-cos(theta))/theta2)*A + ((theta-sin(theta))/(theta2*theta))*A*A;

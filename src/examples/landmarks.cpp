@@ -50,7 +50,7 @@ int main() {
     initial_state.setRotation(R0);
     initial_state.setVelocity(v0);
     initial_state.setPosition(p0);
-    initial_state.setGyroscopeBias(bg0);
+    initial_state.setGyroscopeBias(bg0); // Note bias terms (Theta_) are seperated from X_
     initial_state.setAccelerometerBias(ba0);
 
     // Initialize state covariance
@@ -99,7 +99,7 @@ int main() {
     double t_prev = 0;
 
     // Loop through data file and read in measurements line by line
-    while (getline(infile, line)){
+    while (getline(infile, line)) {
         vector<string> measurement;
         boost::split(measurement,line,boost::is_any_of(" "));
         // Handle measurements
@@ -119,8 +119,7 @@ int main() {
             if (dt > DT_MIN && dt < DT_MAX) {
                 filter.Propagate(imu_measurement_prev, dt);
             }
-        }
-        else if (measurement[0].compare("LANDMARK")==0){
+        } else if (measurement[0].compare("LANDMARK")==0){
             cout << "Received LANDMARK observation, correcting state\n";
             assert((measurement.size()-2)%4 == 0);
             t = stod98(measurement[1]); 
@@ -131,7 +130,7 @@ int main() {
                 p_bl << stoi98(measurement[i+1]), 
                         stoi98(measurement[i+2]), 
                         stoi98(measurement[i+3]);
-                Eigen::Matrix3d cov = 0.01*Eigen::Matrix3d::Identity();
+                Eigen::Matrix3d cov = 0.01*Eigen::Matrix3d::Identity(); // default covariance for landmark measurements
                 Landmark landmark(id, p_bl, cov);
                 measured_landmarks.push_back(landmark); 
             }

@@ -150,6 +150,7 @@ int main() {
                 Kinematics frame(id, pose, covariance);
                 measured_kinematics.push_back(frame);
             }
+            cout << "measured_kinematics.size(): " << measured_kinematics.size() << "\n";
             // Correct state using kinematic measurements
             filter.CorrectKinematics(measured_kinematics);
         }
