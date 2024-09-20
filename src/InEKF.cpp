@@ -111,6 +111,9 @@ void InEKF::setMagneticField(Eigen::Vector3d& true_magnetic_field) { magnetic_fi
 Eigen::Vector3d InEKF::getMagneticField() const { return magnetic_field_; }
 
 // Compute Analytical state transition matrix
+/*
+* Input: w - angular velocity, a - linear acceleration, dt - time step
+*/
 Eigen::MatrixXd InEKF::StateTransitionMatrix(Eigen::Vector3d& w, Eigen::Vector3d& a, double dt) {
     Eigen::Vector3d phi = w*dt;
     Eigen::Matrix3d G0 = Gamma_SO3(phi,0); // Computation can be sped up by computing G0,G1,G2 all at once
@@ -256,7 +259,7 @@ void InEKF::Propagate(const Eigen::Matrix<double,6,1>& imu, double dt) {
     // Get current state estimate and dimensions
     Eigen::MatrixXd X = state_.getX();
     Eigen::MatrixXd Xinv = state_.Xinv();
-    Eigen::MatrixXd P = state_.getP();
+    Eigen::MatrixXd P = state_.getP(); // first time is identity
     int dimX = state_.dimX();
     int dimP = state_.dimP();
     int dimTheta = state_.dimTheta();
@@ -264,6 +267,8 @@ void InEKF::Propagate(const Eigen::Matrix<double,6,1>& imu, double dt) {
     //  ------------ Propagate Covariance --------------- //
     Eigen::MatrixXd Phi = this->StateTransitionMatrix(w,a,dt); // State transition matrix Eq. 55
     Eigen::MatrixXd Qd = this->DiscreteNoiseMatrix(Phi, dt); // Control noise Eq. 61
+    // std::cout << "Qd:\n" << Qd << std::endl;
+
     Eigen::MatrixXd P_pred = Phi * P * Phi.transpose() + Qd; // Predicted noise Eq. 51
 
     // If we don't want to estimate bias, remove correlation
@@ -294,17 +299,17 @@ void InEKF::Propagate(const Eigen::Matrix<double,6,1>& imu, double dt) {
         // Propagate body-centric state estimate
         Eigen::MatrixXd X_pred = X;
         Eigen::Matrix3d G0t = G0.transpose(); // R_t_t-1
-        X_pred.block<3,3>(0,0) = G0t*R; // Rbw_t = R_t_t-1 * Rbw_t-1
+        X_pred.block<3,3>(0,0) = G0t*R; // Rbw_t = R_t_t-1 * Rb_t-1_w
         X_pred.block<3,1>(0,3) = G0t*(v - (G1*a + R*g_)*dt);
         X_pred.block<3,1>(0,4) = G0t*(p + v*dt - (G2*a + 0.5*R*g_)*dt*dt);
         for (int i=5; i<dimX; ++i) {
             X_pred.block<3,1>(0,i) = G0t*X.block<3,1>(0,i);
         }
-    } 
+    }
 
     //  ------------ Update State --------------- // 
     state_.setX(X_pred);
-    state_.setP(P_pred);      
+    state_.setP(P_pred);
 }
 
 
@@ -332,7 +337,7 @@ void InEKF::CorrectRightInvariant(const Eigen::MatrixXd& Z, const Eigen::MatrixX
     // Map from left invariant to right invariant error temporarily
     if (error_type_==ErrorType::LeftInvariant) {
         Eigen::MatrixXd Adj = Eigen::MatrixXd::Identity(dimP,dimP);
-        Adj.block(0,0,dimP-dimTheta,dimP-dimTheta) = Adjoint_SEK3(X); 
+        Adj.block(0,0,dimP-dimTheta,dimP-dimTheta) = Adjoint_SEK3(X);
         P = (Adj * P * Adj.transpose()).eval(); // Eq. 36
     }
 
@@ -606,7 +611,7 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
         // See if we can find id in prior_landmarks or estimated_landmarks
         mapIntVector3dIterator it_prior = prior_landmarks_.find(it->id);
         map<int,int>::iterator it_estimated = estimated_landmarks_.find(it->id);
-        if (it_prior!=prior_landmarks_.end()) { // Now will not enter here
+        if (it_prior!=prior_landmarks_.end()) { // Now will not enter here (this assumes a gt map as prior)
             // Found in prior landmark set
             int dimX = state_.dimX();
             int dimTheta = state_.dimTheta();
@@ -617,6 +622,9 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
             startIndex = H.rows();
             H.conservativeResize(startIndex+3, dimP);
             H.block(startIndex,0,3,dimP) = Eigen::MatrixXd::Zero(3,dimP);
+            // two observations
+            // lx 0 -I 0
+            // lx 0 -I 0
             if (state_.getStateType() == StateType::WorldCentric) {
                 H.block(startIndex,0,3,3) = skew(it_prior->second); // skew(p_wl)
                 H.block(startIndex,6,3,3) = -Eigen::Matrix3d::Identity(); // -I    
@@ -637,7 +645,7 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
             Z.conservativeResize(startIndex+3, Eigen::NoChange);
             Eigen::Matrix3d R = state_.getRotation();
             Eigen::Vector3d p = state_.getPosition();
-            Eigen::Vector3d l = state_.getVector(it_estimated->second);  
+            Eigen::Vector3d l = state_.getVector(it_estimated->second);
             if (state_.getStateType() == StateType::WorldCentric) {
                 Z.segment(startIndex,3) = R*it->position - (l - it_prior->second); 
             } else {
@@ -657,10 +665,10 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
             // 0 0 -I 0 I 0 0 0
             // 0 0 -I 0 0 I 0 0
             startIndex = H.rows();
-            // std::cout << "before H dim: " << H.rows() << " " << H.cols() << std::endl;
+            std::cout << "before H dim: " << H.rows() << " " << H.cols() << std::endl;
             H.conservativeResize(startIndex+3, dimP); // add 3 rows to H
-            H.block(startIndex,0,3,dimP) = Eigen::MatrixXd::Zero(3,dimP);
-            // std::cout << "after H dim: " << H.rows() << " " << H.cols() << std::endl;
+            H.block(startIndex,0,3,dimP) = Eigen::MatrixXd::Zero(3,dimP); // make all to be zero
+            std::cout << "after H dim: " << H.rows() << " " << H.cols() << std::endl;
             // std::cout << "start col: " << 3 * it_estimated->second - dimTheta << std::endl;
             if (state_.getStateType() == StateType::WorldCentric) {
                 H.block(startIndex,6,3,3) = -Eigen::Matrix3d::Identity(); // -I // Eq. 20
@@ -669,6 +677,7 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
                 H.block(startIndex,6,3,3) = Eigen::Matrix3d::Identity(); // I
                 H.block(startIndex,3*it_estimated->second-dimTheta,3,3) = -Eigen::Matrix3d::Identity(); // -I
             }
+            std::cout << "H:\n" << H << std::endl;
             
             // Fill out N (measurement covariance)
             // Assumes having 3 landmarks, 0s are 3*3, so N is 9*9
@@ -723,7 +732,7 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
         for (vectorLandmarksIterator it=new_landmarks.begin(); it!=new_landmarks.end(); ++it) {
             // Initialize new landmark mean
             int startIndex = X_aug.rows();
-            X_aug.conservativeResize(startIndex+1, startIndex+1);
+            X_aug.conservativeResize(startIndex+1, startIndex+1); // increase dimension by 1 when there is a new larndmark
             X_aug.block(startIndex,0,1,startIndex) = Eigen::MatrixXd::Zero(1,startIndex); // last row initialized to zero
             X_aug.block(0,startIndex,startIndex,1) = Eigen::MatrixXd::Zero(startIndex,1); // last column initialized to zero
             X_aug(startIndex, startIndex) = 1; // last row diagonal element set to 1
@@ -734,7 +743,7 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
             F.block(0,0,state_.dimP()-state_.dimTheta(),state_.dimP()-state_.dimTheta()) = Eigen::MatrixXd::Identity(state_.dimP()-state_.dimTheta(),state_.dimP()-state_.dimTheta()); // for old X (First three rows of F in Eq. 32)
             F.block(state_.dimP()-state_.dimTheta()+3,state_.dimP()-state_.dimTheta(),state_.dimTheta(),state_.dimTheta()) = Eigen::MatrixXd::Identity(state_.dimTheta(),state_.dimTheta()); // for theta (Last row of F in Eq. 32)
             Eigen::MatrixXd G = Eigen::MatrixXd::Zero(F.rows(),3);
-            // Blocks for new landmark
+            // Add a new landmark
             if (error_type_==ErrorType::RightInvariant) {
                 F.block(state_.dimP()-state_.dimTheta(),6,3,3) = Eigen::Matrix3d::Identity(); // Eq. 32
                 G.block(G.rows()-state_.dimTheta()-3,0,3,3) = state_.getRotation(); // Eq. 32 (Jp seems to be identity)
@@ -784,7 +793,7 @@ void InEKF::RemoveLandmarks(const int landmark_id) {
         estimated_landmarks_.erase(it->first);
         // Update state and covariance
         state_.setX(X_rem);
-        state_.setP(P_rem);   
+        state_.setP(P_rem);
     }
 }
 

@@ -32,6 +32,7 @@ Eigen::Matrix3d skew(const Eigen::Vector3d& v) {
         return M;
 }
 
+// Input: w is the delta angular
 Eigen::Matrix3d Gamma_SO3(const Eigen::Vector3d& w, int m) {
     // Computes mth integral of the exponential map: \Gamma_m = \sum_{n=0}^{\infty} \dfrac{1}{(n+m)!} (w^\wedge)^n
     assert(m>=0);
@@ -45,7 +46,7 @@ Eigen::Matrix3d Gamma_SO3(const Eigen::Vector3d& w, int m) {
 
     // Closed form solution for the first 3 cases
     switch (m) {
-        case 0: // Exp map of SO(3) // Taylor expansion: Directly computes the rotation matrix for a given angular velocity vector.
+        case 0: // Exp map of SO(3) // Taylor expansion: Directly computes the rotation matrix for a given delta angular vector.
             return I + (sin(theta)/theta)*A + ((1-cos(theta))/theta2)*A*A;
 
         case 1: // Left Jacobian of SO(3) // Mapping small angular changes in the Lie algebra to changes in the Lie group

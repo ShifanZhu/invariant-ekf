@@ -18,6 +18,7 @@ namespace inekf {
 
 using namespace std;
 
+// Theta_ contains bg and ba
 // Default constructor
 RobotState::RobotState() : 
     X_(Eigen::MatrixXd::Identity(5,5)), Theta_(Eigen::MatrixXd::Zero(6,1)), P_(Eigen::MatrixXd::Identity(15,15)) {}

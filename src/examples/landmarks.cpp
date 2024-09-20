@@ -104,7 +104,7 @@ int main() {
         boost::split(measurement,line,boost::is_any_of(" "));
         // Handle measurements
         if (measurement[0].compare("IMU")==0){
-            cout << "Received IMU Data, propagating state\n";
+            // cout << "Received IMU Data, propagating state\n";
             assert((measurement.size()-2) == 6);
             t = stod98(measurement[1]); 
             imu_measurement << stoi98(measurement[2]), 
