@@ -317,14 +317,14 @@ void InEKF::Propagate(const Eigen::Matrix<double,6,1>& imu, double dt) {
 void InEKF::CorrectRightInvariant(const Eigen::MatrixXd& Z, const Eigen::MatrixXd& H, const Eigen::MatrixXd& N) {
     // Get current state estimate
     Eigen::MatrixXd X = state_.getX(); // X = [R v p l1 l2 ... ln]  bias are not included in X
-    std::cout << "X.dim: " << X.rows() << " " << X.cols() << std::endl;
-    std::cout << "X:\n" << X << std::endl;
+    // std::cout << "X.dim: " << X.rows() << " " << X.cols() << std::endl;
+    // std::cout << "X:\n" << X << std::endl;
     Eigen::VectorXd Theta = state_.getTheta(); // bias = [bg ba]
     Eigen::MatrixXd P = state_.getP();
     int dimX = state_.dimX();
     int dimTheta = state_.dimTheta();
     int dimP = state_.dimP();
-    std::cout << "dim: " << dimX << " " << dimTheta << " " << dimP << std::endl;
+    // std::cout << "dim: " << dimX << " " << dimTheta << " " << dimP << std::endl;
 
     // Remove bias
     Theta = Eigen::Matrix<double,6,1>::Zero();
@@ -372,6 +372,7 @@ void InEKF::CorrectRightInvariant(const Eigen::MatrixXd& Z, const Eigen::MatrixX
 
     // Set new covariance
     state_.setP(P_new); 
+    // std::cout << "P:\n" << P.block(6, 6, 3, 3) << std::endl;
 }
 
 
@@ -501,6 +502,7 @@ void InEKF::CorrectKinematics(const vectorKinematics& measured_kinematics) {
             continue;
         }
     }
+    std::cout << "pos cov before: \n" << state_.getPositionCovariance() << std::endl;
 
     // Correct state using stacked observation
     if (Z.rows()>0) {
@@ -512,6 +514,7 @@ void InEKF::CorrectKinematics(const vectorKinematics& measured_kinematics) {
             this->CorrectLeftInvariant(Z,H,N);
         }
     }
+    std::cout << "pos cov after: \n" << state_.getPositionCovariance() << std::endl;
 
     // Remove contacts from state
     if (remove_contacts.size() > 0) {
@@ -647,7 +650,8 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
             Eigen::Vector3d p = state_.getPosition();
             Eigen::Vector3d l = state_.getVector(it_estimated->second);
             if (state_.getStateType() == StateType::WorldCentric) {
-                Z.segment(startIndex,3) = R*it->position - (l - it_prior->second); 
+                Z.segment(startIndex,3) = R*it->position - (l - it_prior->second); // original implementation
+                // Z.segment(startIndex,3) = R*it->position + l - it_prior->second;
             } else {
                 Z.segment(startIndex,3) = R.transpose()*(it->position - (p - it_prior->second)); 
             }            
@@ -750,9 +754,14 @@ void InEKF::CorrectLandmarks(const vectorLandmarks& measured_landmarks) {
             } else {
                 F.block(state_.dimP()-state_.dimTheta(),6,3,3) = Eigen::Matrix3d::Identity(); // Eq. 38
                 F.block(state_.dimP()-state_.dimTheta(),0,3,3) = skew(-it->position);  // Eq. 38
+                std::cout << "itposition: \n" << it->position << std::endl;
                 G.block(G.rows()-state_.dimTheta()-3,0,3,3) = Eigen::Matrix3d::Identity(); // Eq. 38 (Jp seems to be identity)
             }
             P_aug = (F*P_aug*F.transpose() + G*it->covariance*G.transpose()).eval(); // Only propagate covariance, not state
+            std::cout <<"F: \n"<<F << std::endl;
+            std::cout <<"G: \n"<<G << std::endl;
+            std::cout <<"P_aug: \n"<<P_aug << std::endl;
+            // exit(0);
 
             // Update state and covariance
             state_.setX(X_aug);

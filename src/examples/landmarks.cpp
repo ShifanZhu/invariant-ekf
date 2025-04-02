@@ -125,11 +125,13 @@ int main() {
             t = stod98(measurement[1]); 
             vectorLandmarks measured_landmarks;
             for (int i=2; i<measurement.size(); i+=4) {
+                std::cout << "landmark data: " << measurement[i+1] << " " << measurement[i+2] << " " << measurement[i+3] << std::endl;
                 int id = stoi98(measurement[i]);
                 Eigen::Vector3d p_bl;
                 p_bl << stoi98(measurement[i+1]), 
                         stoi98(measurement[i+2]), 
                         stoi98(measurement[i+3]);
+                std::cout << "p_bl = " << p_bl.transpose() << std::endl;
                 Eigen::Matrix3d cov = 0.01*Eigen::Matrix3d::Identity(); // default covariance for landmark measurements
                 Landmark landmark(id, p_bl, cov);
                 measured_landmarks.push_back(landmark); 
