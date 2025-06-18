@@ -35,6 +35,7 @@ int stoi98(const std::string &s) {
     return atoi(s.c_str());
 }
 
+
 void SavePoseAsTUM(const std::string& filename, Eigen::Matrix3d orient, Eigen::Vector3d tran, double t) {
   static bool first_call = true;
   std::ofstream save_points;
@@ -73,13 +74,19 @@ int main() {
     // Initialize state mean
     Eigen::Matrix3d R0;
     Eigen::Vector3d v0, p0, bg0, ba0;
-    R0 << 1, 0, 0, // initial orientation
-          0, 1, 0, // IMU frame is rotated 90deg about the x-axis
-          0, 0, 1;
+    // R0 << 1, 0, 0, // initial orientation
+    //       0, 1, 0, // IMU frame is rotated 90deg about the x-axis
+    //       0, 0, 1;
+    R0 << 
+    0.9999185963458515, -2.304557019609009e-05,    0.01275931631809694,
+    0.01275933713025751,   0.001806025993930204,    -0.9999169653468294;
+                     0,    -0.9999983688681978,  -0.001806173023014302,
     v0 << 0,0,0; // initial velocity
     p0 << 0,0,0; // initial position
-    bg0 << 0,0,0; // initial gyroscope bias
-    ba0 << 0,0,0; // initial accelerometer bias
+    // bg0 << 0,0,0; // initial gyroscope bias
+    // ba0 << 0,0,0; // initial accelerometer bias
+    bg0 << -1.81176e-05, 5.99727e-05, -0.000257213;
+    ba0 << 0.000218875, 2.95973e-05, -0.0169909;
     initial_state.setRotation(R0);
     initial_state.setVelocity(v0);
     initial_state.setPosition(p0);
@@ -88,11 +95,11 @@ int main() {
 
     // Initialize state covariance
     NoiseParams noise_params;
-    noise_params.setGyroscopeNoise(0.00);
-    noise_params.setAccelerometerNoise(0.0);
-    noise_params.setGyroscopeBiasNoise(0.00000);
-    noise_params.setAccelerometerBiasNoise(0.0000);
-    noise_params.setContactNoise(0.00);
+    noise_params.setGyroscopeNoise(0.001);
+    noise_params.setAccelerometerNoise(0.01);
+    noise_params.setGyroscopeBiasNoise(0.0001);
+    noise_params.setAccelerometerBiasNoise(0.0001);
+    noise_params.setContactNoise(0.01);
 
     // Initialize filter
     InEKF filter(initial_state, noise_params);
@@ -102,7 +109,7 @@ int main() {
     cout << filter.getState() << endl;
 
     // Open data file
-    ifstream infile("../src/data/imu_kinematic_measurements.txt");
+    ifstream infile("../src/data/imu_kinematic_measurements_cear.txt");
     string line;
     Eigen::Matrix<double,6,1> imu_measurement = Eigen::Matrix<double,6,1>::Zero();
     Eigen::Matrix<double,6,1> imu_measurement_prev = Eigen::Matrix<double,6,1>::Zero();
@@ -118,7 +125,7 @@ int main() {
         boost::split(measurement,line,boost::is_any_of(" "));
         // // Handle measurements
         if (measurement[0].compare("IMU")==0){
-            cout << "Received IMU Data, propagating state\n";
+            // cout << "Received IMU Data, propagating state\n";
             assert((measurement.size()-2) == 6);
             t = stod98(measurement[1]); 
             // Read in IMU data
@@ -134,13 +141,14 @@ int main() {
             // if (dt > DT_MIN && dt < DT_MAX) {
                 filter.Propagate(imu_measurement_prev, dt);
             // }
+            // std::cout << "imu_measurement: " << imu_measurement.transpose() << "\n";
 
             // Store previous timestamp
             t_prev = t;
             imu_measurement_prev = imu_measurement;
         }
         else if (measurement[0].compare("CONTACT")==0){
-            cout << "Received CONTACT Data, setting filter's contact state\n";
+            // cout << "Received CONTACT Data, setting filter's contact state\n";
             assert((measurement.size()-2)%2 == 0);
             vector<pair<int,bool> > contacts;
             int id;
@@ -151,13 +159,14 @@ int main() {
                 id = stoi98(measurement[i]);
                 indicator = bool(stod98(measurement[i+1]));
                 contacts.push_back(pair<int,bool> (id, indicator));
-            }       
+                // std::cout << "contact id: " << id << ", indicator: " << indicator << "\n";
+            }
             // Set filter's contact state
             filter.setContacts(contacts);
         }
         else if (measurement[0].compare("KINEMATIC")==0){
-            cout << "Received KINEMATIC observation, correcting state\n";  
-            assert((measurement.size()-2)%44 == 0);
+            // cout << "Received KINEMATIC observation, correcting state\n";  
+            assert((measurement.size()-2)%4 == 0);
             int id;
             Eigen::Quaternion<double> q;
             Eigen::Vector3d p;
@@ -166,22 +175,19 @@ int main() {
             vectorKinematics measured_kinematics;
             double t_meas = stod98(measurement[1]); 
             // Read in kinematic data
-            for (int i=2; i<measurement.size(); i+=44) {
-                id = stoi98(measurement[i]); 
-                q = Eigen::Quaternion<double> (stod98(measurement[i+1]),stod98(measurement[i+2]),stod98(measurement[i+3]),stod98(measurement[i+4]));
+            for (int i=2; i<measurement.size(); i+=4) {
+                id = stoi98(measurement[i]);
+                q = Eigen::Quaternion<double>(1, 0, 0, 0);
                 q.normalize();
-                p << stod98(measurement[i+5]),stod98(measurement[i+6]),stod98(measurement[i+7]);
+                p << stod98(measurement[i+1]),stod98(measurement[i+2]),stod98(measurement[i+3]);
                 pose.block<3,3>(0,0) = q.toRotationMatrix();
                 pose.block<3,1>(0,3) = p;
-                for (int j=0; j<6; ++j) {
-                    for (int k=0; k<6; ++k) {
-                        covariance(j,k) = stod98(measurement[i+8 + j*6+k]);
-                    }
-                }
+                covariance = Eigen::Matrix<double,6,6>::Identity() * 1e-2;
                 Kinematics frame(id, pose, covariance);
                 measured_kinematics.push_back(frame);
+                // std::cout << "pose, id: " << id << "\n" << pose << "\n";
             }
-            cout << "measured_kinematics.size(): " << measured_kinematics.size() << "\n";
+            // cout << "measured_kinematics.size(): " << measured_kinematics.size() << "\n";
             // Correct state using kinematic measurements
             filter.CorrectKinematics(measured_kinematics);
             static std::string pose_path = "/home/s/data/cear/indoor/mocap1_well-lit_trot/algo_pose/InEKF.txt";
@@ -195,7 +201,7 @@ int main() {
 
     // Print final state
     cout.precision(17);
-    cout << "imu:\n " << imu_measurement << endl;
+    // cout << "imu:\n " << imu_measurement << endl;
     cout << "t:\n " << t << endl;
 
     cout << filter.getState() << endl;

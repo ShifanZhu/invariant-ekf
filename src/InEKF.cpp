@@ -502,7 +502,7 @@ void InEKF::CorrectKinematics(const vectorKinematics& measured_kinematics) {
             continue;
         }
     }
-    std::cout << "pos cov before: \n" << state_.getPositionCovariance() << std::endl;
+    // std::cout << "pos cov before: \n" << state_.getPositionCovariance() << std::endl;
 
     // Correct state using stacked observation
     if (Z.rows()>0) {
@@ -514,7 +514,7 @@ void InEKF::CorrectKinematics(const vectorKinematics& measured_kinematics) {
             this->CorrectLeftInvariant(Z,H,N);
         }
     }
-    std::cout << "pos cov after: \n" << state_.getPositionCovariance() << std::endl;
+    // std::cout << "pos cov after: \n" << state_.getPositionCovariance() << std::endl;
 
     // Remove contacts from state
     if (remove_contacts.size() > 0) {
